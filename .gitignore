@@ -1,0 +1,18 @@
+# Environment variables — NEVER commit these
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+
+# Data directories — these can be huge and are auto-generated
+data/
+
+# Airflow generated files
+airflow-docker/logs/
+airflow-docker/plugins/
+airflow-docker/reports/
+airflow-docker/config/
