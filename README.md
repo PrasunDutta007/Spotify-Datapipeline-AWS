@@ -1,4 +1,15 @@
-# Spotify Data Pipeline (AWS + Snowflake)
+<table border="0" cellspacing="0" cellpadding="10">
+<tr>
+<td><img src="img/music.gif" width="80" height="80"/></td>
+<td>
+
+# Spotify Data Pipeline (AWS)
+
+</td>
+</tr>
+</table>
+
+
  
 ![AWS Lambda](https://img.shields.io/badge/AWS%20Lambda-FF9900?style=flat-square&logo=awslambda&logoColor=white)
 ![AWS Glue](https://img.shields.io/badge/AWS%20Glue-8C4FFF?style=flat-square&logo=amazonaws&logoColor=white)
@@ -13,13 +24,13 @@
 ---
  
 ## Table of Contents
- 
+
 - [Architecture](#architecture)
 - [1. S3 Bucket Setup](#1-s3-bucket-setup)
-- [2. Data Extraction — AWS Lambda](#2-data-extraction--aws-lambda)
-- [3. Data Transformation — AWS Glue](#3-data-transformation--aws-glue)
+- [2. Data Extraction - AWS Lambda](#2-data-extraction---aws-lambda)
+- [3. Data Transformation - AWS Glue](#3-data-transformation---aws-glue)
 - [4. Snowflake Setup & Snowpipe](#4-snowflake-setup--snowpipe)
-- [5. Orchestration — Apache Airflow](#5-orchestration--apache-airflow)
+- [5. Orchestration - Apache Airflow](#5-orchestration---apache-airflow)
 ---
  
 ## Architecture
@@ -47,7 +58,7 @@ A single S3 bucket (`spotify-etl-project-prasun`) is organised into two top-leve
  
 ---
  
-## 2. Data Extraction — AWS Lambda
+## 2. Data Extraction - AWS Lambda
  
 **File:** `spotify_api_data_extract.py`
  
@@ -68,14 +79,14 @@ Since the default Lambda runtime does not include `spotipy`, it is packaged as a
  
 | Resource | Details |
 |---|---|
-| **IAM Role** | `spotify_lambda_role` — attached to the Lambda function |
-| **Policy** | `AmazonS3FullAccess` (or a scoped policy) — allows `PutObject` to the S3 bucket |
+| **IAM Role** | `spotify_lambda_role` - attached to the Lambda function |
+| **Policy** | `AmazonS3FullAccess` (or a scoped policy) - allows `PutObject` to the S3 bucket |
 | **Env Vars** | `client_id`, `client_secret` set in Lambda Configuration → Environment Variables |
 | **Layer** | `spotipy` library packaged as a `.zip` and added as a Lambda Layer |
  
 ---
  
-## 3. Data Transformation — AWS Glue
+## 3. Data Transformation - AWS Glue
  
 **File:** `spotify_transformation_job.py`
  
@@ -83,16 +94,16 @@ An AWS Glue PySpark job reads all raw JSON files from `raw_data/to_processed/`, 
  
 Three transformation functions handle the three entity types:
  
-- **`process_albums`** — extracts `album_id`, `name`, `release_date`, `total_tracks`, `url`; deduplicates on `album_id`
-- **`process_artists`** — double-explodes the nested artists array to give one row per artist; deduplicates on `artist_id`
-- **`process_songs`** — extracts song metadata including `duration_ms`, `popularity`, `song_added` (converted to date); deduplicates on `song_id`
+- **`process_albums`** - extracts `album_id`, `name`, `release_date`, `total_tracks`, `url`; deduplicates on `album_id`
+- **`process_artists`** - double-explodes the nested artists array to give one row per artist; deduplicates on `artist_id`
+- **`process_songs`** - extracts song metadata including `duration_ms`, `popularity`, `song_added` (converted to date); deduplicates on `song_id`
 Output paths follow the pattern `transformed_data/<entity>/<entity>_transformed_<YYYY-MM-DD>/`.
  
 ### IAM Setup for Glue
  
 | Resource | Details |
 |---|---|
-| **IAM Role** | `spotify_glue_iam_role` — assigned to the Glue job |
+| **IAM Role** | `spotify_glue_iam_role` - assigned to the Glue job |
 | **Policies** | `AWSGlueServiceRole` + `AmazonS3FullAccess` |
 | **Script location** | `s3://aws-glue-assets-.../scripts/spotify_transformation_job.py` |
 | **Glue version** | Glue 3.0 (Spark 3.1, Python 3) |
@@ -118,7 +129,7 @@ CREATE TABLE tbl_songs  (song_id, song_name, duration_ms, url, popularity, song_
 A **Storage Integration** (`s3_init`) is created in Snowflake using a dedicated AWS IAM Role:
  
 1. Create the Storage Integration in Snowflake pointing at the S3 bucket location
-2. Run `DESC INTEGRATION s3_init` — copy the `STORAGE_AWS_IAM_USER_ARN` and `STORAGE_AWS_EXTERNAL_ID`
+2. Run `DESC INTEGRATION s3_init` - copy the `STORAGE_AWS_IAM_USER_ARN` and `STORAGE_AWS_EXTERNAL_ID`
 3. In AWS IAM, create a role (`snowflake_s3_role`) with a trust policy using those two values
 4. Attach `AmazonS3ReadOnlyAccess` (or a scoped policy on the bucket) to the role
 5. Paste the Role ARN back into the integration's `STORAGE_AWS_ROLE_ARN`
@@ -126,7 +137,7 @@ A **Stage** (`spotify_stage`) and a **CSV File Format** object are then created 
  
 ### Snowpipe (Auto-Ingest)
  
-Three Snowpipes are configured — one per table — with `auto_ingest = TRUE`:
+Three Snowpipes are configured - one per table - with `auto_ingest = TRUE`:
  
 ```sql
 CREATE PIPE spotify_db.pipe.tbl_album_pipe  AUTO_INGEST=TRUE AS
@@ -139,7 +150,7 @@ CREATE PIPE spotify_db.pipe.tbl_songs_pipe  AUTO_INGEST=TRUE AS
   COPY INTO spotify_db.public.tbl_songs  FROM @spotify_stage/songs/;
 ```
  
-Running `DESC PIPE <pipe_name>` exposes the **SQS queue ARN** for each pipe. This ARN is added as an **S3 Event Notification** on the `transformed_data/` prefix in the bucket — so every time Glue writes a new CSV, S3 fires an event, Snowpipe picks it up, and the data lands in Snowflake automatically.
+Running `DESC PIPE <pipe_name>` exposes the **SQS queue ARN** for each pipe. This ARN is added as an **S3 Event Notification** on the `transformed_data/` prefix in the bucket - so every time Glue writes a new CSV, S3 fires an event, Snowpipe picks it up, and the data lands in Snowflake automatically.
  
 **Snowpipe graphs (Stage → Pipe → Table):**
  
@@ -151,7 +162,7 @@ Running `DESC PIPE <pipe_name>` exposes the **SQS queue ARN** for each pipe. Thi
  
 ---
  
-## 5. Orchestration — Apache Airflow
+## 5. Orchestration - Apache Airflow
  
 **Files:** `airflow-docker/docker-compose.yaml`, `dags/spotify_trigger_external.py`
  
@@ -167,7 +178,7 @@ trigger_extract_lambda  →  check_s3_upload  →  trigger_glue_job
 | `check_s3_upload` | `S3KeySensor` | Polls `raw_data/to_processed/*` until a file appears (timeout: 1 hr) |
 | `trigger_glue_job` | `GlueJobOperator` | Runs the `spotify_transformation_job` Glue job |
  
-![Airflow DAG — all tasks succeeded](img/airflow_dag.png)
+![Airflow DAG - all tasks succeeded](img/airflow_dag.png)
  
 ### Airflow ↔ AWS Connection
  
@@ -184,8 +195,13 @@ An **Airflow Connection** (`aws_s3_spotify`) is configured in the Airflow UI (Ad
 The IAM user `airflow_spotify_user` is granted policies to invoke Lambda (`lambda:InvokeFunction`), read S3 (`s3:GetObject`, `s3:ListBucket`), and start Glue jobs (`glue:StartJobRun`, `glue:GetJobRun`).
  
 ---
- 
+
 <p align="center">
-  Built by Prasun Dutta · Assisted by <a href="https://claude.ai">Claude</a>
+  Built by Prasun Dutta · Assisted by <a href="https://code.claude.com/docs/en/overview">Claude Code</a>
 </p>
- 
+
+---
+<p align="center">
+  <sub>Animated icons by <a href="https://www.flaticon.com/free-animated-icons/listen" title="listen animated icons">Listen animated icons created by Freepik - Flaticon</a></sub>
+</p>
+
